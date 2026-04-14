@@ -133,14 +133,4 @@ Validation was performed on Revit's official sample model:
 
 MIT License — see `LICENSE` file.
 
----
 
-## Citation
-
-If you use VIBE in your research, please cite:
-
-```
-Enis, A. (2025). VIBE: Voice Interface for BIM Environments —
-An AI-Driven Framework for Natural Language Interaction and
-Execution in Building Information Modeling Systems. Under review.
-```
