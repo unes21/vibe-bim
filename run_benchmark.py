@@ -1,5 +1,0 @@
-flask>=3.0
-requests>=2.31
-python-dotenv>=1.0
-pandas>=2.0
-numpy>=1.24
