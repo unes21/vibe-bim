@@ -1,191 +1,184 @@
-[README.md](https://github.com/user-attachments/files/27486910/README.md)
-# VIBE: Voice Interface for BIM Environments
+"""
+Compute corrected VIBE benchmark metrics by separating four distinct metrics:
+  - NLP accuracy        (Nc/N)        : resolved category == gold
+  - Dispatch rate       (Nd/N)        : NLP returned valid category AND model has elements
+  - Write success       (Nw/Nd)       : Dynamo write completed
+  - End-to-end accuracy (Nv/N strict) : NLP correct AND write succeeded
+"""
 
-VIBE is a rule-first natural-language interface for BIM parameter annotation. It connects a browser-based conversational voice/text interface to Autodesk Revit through a Flask middleware layer, a local Ollama-hosted LLM fallback, and a Dynamo executor. The current prototype writes free-text annotations to a Revit `Comments`-mapped field (`Asistan_Notu`) through a shared JSON handoff file.
+import pandas as pd
+import numpy as np
+from pathlib import Path
 
-The main design goal is to avoid a cloud LLM as a hard dependency. Common commands are resolved by deterministic keyword rules; ambiguous commands are escalated to a locally served `llama3.1:8b` model through Ollama.
+df = pd.read_csv("vibe_e2e_results.csv")
 
-## Repository structure
+# Normalize boolean columns (CSV has "True"/"False" strings + empties)
+for col in ["nlp_correct", "e2e_verified"]:
+    df[col] = df[col].astype(str).str.strip()
+    df[col] = df[col].map({"True": True, "False": False}).fillna(False)
 
-```text
-vibe-bim/
-├── app.py                         # Flask backend and embedded browser UI
-├── config.example.env             # Example local configuration
-├── requirements.txt               # Python dependencies
-├── LICENSE
-├── README.md
-├── benchmark/
-│   ├── run_benchmark.py           # NLP-only benchmark over the 91-command corpus
-│   ├── run_e2e_benchmark.py       # End-to-end benchmark: NLP + write + verification
-│   ├── run_multi.py               # Repeated benchmark wrapper
-│   ├── aggregate_runs.py          # Multi-run aggregation helper
-│   └── analyze_metrics.py         # Single-run metric analysis helper
-├── dynamo/
-│   └── VIBE_executor.dyn          # Dynamo graph used inside Revit
-├── data/
-│   └── sample_revit_data.json     # Minimal example JSON schema
-└── runs/
-    └── take3_run*.csv/.txt        # Five replicated benchmark logs
-```
+df["dispatched_count"] = pd.to_numeric(df["dispatched_count"], errors="coerce").fillna(0).astype(int)
+df["nlp_latency_ms"]   = pd.to_numeric(df["nlp_latency_ms"], errors="coerce")
+df["e2e_elapsed_sec"]  = pd.to_numeric(df["e2e_elapsed_sec"], errors="coerce")
 
-## Requirements
+N = len(df)
+print(f"=== CORPUS SIZE ===")
+print(f"N = {N}\n")
 
-Tested environment:
+# ============================================================
+# 1. HEADLINE METRICS (full corpus)
+# ============================================================
+print("=== HEADLINE METRICS (full corpus, N=91) ===")
 
-- Python 3.11
-- Autodesk Revit 2025
-- Dynamo Player inside Revit
-- Ollama with `llama3.1:8b`
-- Windows host for the Revit/Dynamo workflow
+nlp_correct      = df["nlp_correct"].sum()
+dispatched       = (df["dispatched_count"] > 0).sum()
+write_succeeded  = df["e2e_verified"].sum()
+e2e_strict       = (df["nlp_correct"] & df["e2e_verified"]).sum()
 
-Python dependencies are listed in `requirements.txt`.
+print(f"NLP accuracy        : {nlp_correct}/{N} = {nlp_correct/N*100:.1f}%")
+print(f"Dispatch rate       : {dispatched}/{N} = {dispatched/N*100:.1f}%")
+print(f"Write 'verified'    : {write_succeeded}/{N} = {write_succeeded/N*100:.1f}%  (legacy headline)")
+print(f"E2E accuracy STRICT : {e2e_strict}/{N} = {e2e_strict/N*100:.1f}%  (NEW honest headline)")
 
-## Setup
+# How many "verified" writes were actually to the WRONG category?
+wrong_target_writes = (~df["nlp_correct"] & df["e2e_verified"]).sum()
+print(f"\n!! Writes confirmed but to WRONG target: {wrong_target_writes}/{N} = {wrong_target_writes/N*100:.1f}%")
+print(f"   (these are counted as 'verified' in the legacy 73.6% but are substantively incorrect)")
 
-Clone the repository and install Python dependencies:
+# Write success conditional on dispatch
+disp_subset_verified = df[df["dispatched_count"] > 0]["e2e_verified"].sum()
+disp_subset_total    = (df["dispatched_count"] > 0).sum()
+print(f"\nWrite success on dispatched subset : {disp_subset_verified}/{disp_subset_total} = {disp_subset_verified/disp_subset_total*100:.1f}%")
+print()
 
-```bash
-git clone https://github.com/unes21/vibe-bim.git
-cd vibe-bim
-python -m venv .venv
-.venv\Scripts\activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
+# ============================================================
+# 2. PER-TIER BREAKDOWN
+# ============================================================
+print("=== PER-TIER BREAKDOWN ===")
+for tier in ["rules", "ollama", "unresolved"]:
+    sub = df[df["nlp_source"] == tier]
+    n   = len(sub)
+    if n == 0:
+        continue
+    nc  = sub["nlp_correct"].sum()
+    e2e = (sub["nlp_correct"] & sub["e2e_verified"]).sum()
+    lat = sub["nlp_latency_ms"]
+    print(f"  {tier:10s}: n={n:2d}, NLP correct={nc}/{n} ({nc/n*100:.0f}%), "
+          f"E2E strict correct={e2e}/{n} ({e2e/n*100:.0f}%), "
+          f"latency median={lat.median():.2f}ms")
+print()
 
-Install Ollama separately and pull the local model:
+# ============================================================
+# 3. PER-VARIANT BREAKDOWN  (CRITICAL for easy subset framing)
+# ============================================================
+print("=== PER-VARIANT BREAKDOWN ===")
+print("(variants a-d target rules, e-g are adversarial / target LLM)")
+print()
+variant_order = ["a_direct_tr", "b_direct_en", "c_synonym", "d_no_accent",
+                 "e_oov_tr", "f_oov_en", "g_indirect"]
+for v in variant_order:
+    sub = df[df["variant"] == v]
+    n   = len(sub)
+    nc  = sub["nlp_correct"].sum()
+    e2e = (sub["nlp_correct"] & sub["e2e_verified"]).sum()
+    print(f"  {v:14s}: n={n:2d}, NLP={nc}/{n} ({nc/n*100:5.1f}%), "
+          f"E2E strict={e2e}/{n} ({e2e/n*100:5.1f}%)")
 
-```bash
-ollama pull llama3.1:8b
-```
+# Easy subset (a-d) vs adversarial subset (e-g)
+easy_mask = df["variant"].isin(["a_direct_tr", "b_direct_en", "c_synonym", "d_no_accent"])
+adv_mask  = df["variant"].isin(["e_oov_tr", "f_oov_en", "g_indirect"])
 
-Ollama usually runs automatically on Windows after installation. If needed, start it manually:
+print()
+print("=== EASY SUBSET (variants a-d, comparable to prior work) ===")
+n_easy   = easy_mask.sum()
+nc_easy  = df.loc[easy_mask, "nlp_correct"].sum()
+e2e_easy = (df.loc[easy_mask, "nlp_correct"] & df.loc[easy_mask, "e2e_verified"]).sum()
+print(f"  N            = {n_easy}")
+print(f"  NLP accuracy = {nc_easy}/{n_easy} = {nc_easy/n_easy*100:.1f}%")
+print(f"  E2E strict   = {e2e_easy}/{n_easy} = {e2e_easy/n_easy*100:.1f}%")
 
-```bash
-ollama serve
-```
+print()
+print("=== ADVERSARIAL SUBSET (variants e-g) ===")
+n_adv   = adv_mask.sum()
+nc_adv  = df.loc[adv_mask, "nlp_correct"].sum()
+e2e_adv = (df.loc[adv_mask, "nlp_correct"] & df.loc[adv_mask, "e2e_verified"]).sum()
+print(f"  N            = {n_adv}")
+print(f"  NLP accuracy = {nc_adv}/{n_adv} = {nc_adv/n_adv*100:.1f}%")
+print(f"  E2E strict   = {e2e_adv}/{n_adv} = {e2e_adv/n_adv*100:.1f}%")
+print()
 
-## Configuration
+# ============================================================
+# 4. PER-CATEGORY TABLE (the corrected Table 1)
+# ============================================================
+print("=== PER-CATEGORY TABLE (corrected Table 1) ===\n")
+print(f"{'Category':12s} {'N':>3s} {'NLPc':>5s} {'Disp':>5s} {'Wver':>5s} {'E2Es':>5s} {'medLat':>7s} {'meanLat':>8s}")
+rows = []
+for cat in df["gold"].unique():
+    sub = df[df["gold"] == cat]
+    n   = len(sub)
+    nc  = sub["nlp_correct"].sum()
+    nd  = (sub["dispatched_count"] > 0).sum()
+    nw  = sub["e2e_verified"].sum()
+    ne2e = (sub["nlp_correct"] & sub["e2e_verified"]).sum()
+    lat = sub.loc[sub["e2e_verified"], "e2e_elapsed_sec"]
+    medlat  = lat.median() if len(lat) else float("nan")
+    meanlat = lat.mean()   if len(lat) else float("nan")
+    rows.append((cat, n, nc, nd, nw, ne2e, medlat, meanlat))
+    print(f"{cat:12s} {n:>3d} {nc:>5d} {nd:>5d} {nw:>5d} {ne2e:>5d} {medlat:>7.2f} {meanlat:>8.2f}")
 
-Copy the example environment file and edit the JSON path:
+print()
+print("Total / weighted means:")
+total_n   = sum(r[1] for r in rows)
+total_nc  = sum(r[2] for r in rows)
+total_nd  = sum(r[3] for r in rows)
+total_nw  = sum(r[4] for r in rows)
+total_ne2e= sum(r[5] for r in rows)
+print(f"{'TOTAL':12s} {total_n:>3d} {total_nc:>5d} {total_nd:>5d} {total_nw:>5d} {total_ne2e:>5d}")
+print(f"  NLP corr  : {total_nc}/{total_n} = {total_nc/total_n*100:.1f}%")
+print(f"  Dispatch  : {total_nd}/{total_n} = {total_nd/total_n*100:.1f}%")
+print(f"  Wver      : {total_nw}/{total_n} = {total_nw/total_n*100:.1f}%   <- legacy 73.6% headline (loose)")
+print(f"  E2E strict: {total_ne2e}/{total_n} = {total_ne2e/total_n*100:.1f}%   <- proposed honest headline")
 
-```bash
-copy config.example.env .env
-```
+# ============================================================
+# 5. LATENCY PERCENTILES (Problem 6)
+# ============================================================
+print("\n=== LATENCY DISTRIBUTION (Problem 6) ===")
+lat_all = df.loc[df["e2e_verified"], "e2e_elapsed_sec"].dropna()
+print(f"  n={len(lat_all)} verified writes")
+for p in [50, 75, 90, 95, 99]:
+    print(f"  p{p:2d} = {np.percentile(lat_all, p):.2f}s")
+print(f"  max = {lat_all.max():.2f}s")
+print(f"  mean= {lat_all.mean():.2f}s")
+print(f"  Excluding outliers > 10s: n={(lat_all<=10).sum()}, mean={lat_all[lat_all<=10].mean():.2f}s")
 
-Edit `.env`:
+# Rule-tier latency
+rule_lat = df.loc[df["nlp_source"] == "rules", "nlp_latency_ms"]
+print(f"\n  Rule-tier NLP latency (n={len(rule_lat)}):")
+print(f"    min={rule_lat.min():.4f}ms, median={rule_lat.median():.4f}ms, "
+      f"mean={rule_lat.mean():.4f}ms, max={rule_lat.max():.4f}ms")
 
-```env
-VIBE_JSON_PATH=C:\ProjectX\revit_data.json
-OLLAMA_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.1:8b
-OLLAMA_TIMEOUT_SEC=30
-VIBE_LOG_PATH=./vibe_bench.csv
-```
+# Ollama-tier latency
+oll_lat = df.loc[df["nlp_source"] == "ollama", "nlp_latency_ms"]
+print(f"  Ollama-tier NLP latency (n={len(oll_lat)}):")
+print(f"    median={oll_lat.median():.0f}ms, mean={oll_lat.mean():.0f}ms")
 
-Do not commit your real `.env` file. It may contain personal local paths.
+# ============================================================
+# 6. FAILURE TAXONOMY (Problem 16: Type B explicit table)
+# ============================================================
+print("\n=== TYPE A: rule-tier substring false positives ===")
+type_a = df[(df["nlp_source"] == "rules") & (~df["nlp_correct"])]
+print(f"  count = {len(type_a)}")
+for _, r in type_a.iterrows():
+    print(f"    gold={r['gold']:9s} pred={r['nlp_resolved']:9s} | {r['input']}")
 
-## Revit and Dynamo preparation
+print("\n=== TYPE B: Ollama semantic-neighbour confusion ===")
+type_b = df[(df["nlp_source"] == "ollama") & (~df["nlp_correct"]) & (df["nlp_resolved"].notna()) & (df["nlp_resolved"] != "")]
+print(f"  count = {len(type_b)}")
+for _, r in type_b.iterrows():
+    print(f"    gold={r['gold']:9s} pred={str(r['nlp_resolved']):9s} | {r['input']}")
 
-1. Open Autodesk Revit 2025.
-2. Load the benchmark model, for example the standard `racbasicsampleproject.rvt` from the Revit sample project library.
-3. Open Dynamo Player.
-4. Load `dynamo/VIBE_executor.dyn`.
-5. Make sure the Dynamo workflow is writing and polling the same JSON file configured by `VIBE_JSON_PATH`.
-6. Keep Revit and Dynamo running while the Flask server and benchmarks execute.
-
-The repository does not include Autodesk Revit sample model files (`.rvt`) because they are Autodesk-distributed assets.
-
-## Running the Flask server
-
-From the repository root:
-
-```bash
-python app.py
-```
-
-Then open:
-
-```text
-http://127.0.0.1:5000
-```
-
-The embedded voice-agent UI follows a short conversational flow: command recognition, note capture, append/overwrite confirmation, and dispatch to Dynamo through the JSON handoff file.
-
-Useful API endpoints:
-
-```text
-GET  /api/health
-POST /api/llm/category
-POST /api/llm/mode
-GET  /api/data
-POST /api/write
-POST /api/reset_pending
-POST /api/category_status
-POST /api/log
-```
-
-## Running benchmarks
-
-The benchmark scripts live in `benchmark/`. Run them from that directory so side-by-side imports work cleanly:
-
-```bash
-cd benchmark
-```
-
-NLP-only benchmark:
-
-```bash
-python run_benchmark.py --server http://127.0.0.1:5000
-```
-
-End-to-end benchmark:
-
-```bash
-python run_e2e_benchmark.py --server http://127.0.0.1:5000 --wait-sec 20
-```
-
-Five-run repeated benchmark:
-
-```bash
-python run_multi.py --runs 5 --label take3 --out-dir ../runs --server http://127.0.0.1:5000
-```
-
-Aggregate completed run CSVs:
-
-```bash
-python aggregate_runs.py --csv-dir ../runs --out-csv ../runs/aggregated_per_category.csv
-```
-
-## Benchmark corpus
-
-The 91-command corpus is embedded in `benchmark/run_benchmark.py` as `TEST_CORPUS`. It covers 13 BIM categories with seven syntactic variants per category:
-
-- direct Turkish keyword
-- direct English keyword
-- Turkish synonym or alternative phrasing
-- accent-stripped Turkish
-- out-of-vocabulary Turkish description
-- out-of-vocabulary English description
-- indirect or inferential English description
-
-## Notes on reproducibility
-
-The included `runs/take3_run01` to `take3_run05` files are replicated benchmark logs. They document the observed NLP tier distribution, per-category results, latency summaries, and dispatch misses.
-
-The local JSON handoff file (`revit_data.json`) is intentionally not included as a full runtime artifact because it contains live Revit element state and local benchmark traces. A small schema-only example is provided in `data/sample_revit_data.json`.
-
-## Security and privacy
-
-Do not commit:
-
-- `.env`
-- full `revit_data.json` runtime files
-- Revit model files (`.rvt`, `.rfa`)
-- Python cache files (`__pycache__`, `.pyc`)
-- API keys or external service credentials
-
-The current VIBE architecture does not require a cloud LLM API key for the reported workflow.
-
-## License
-
-This project is released under the MIT License. See `LICENSE`.
+print("\n=== TYPE C: unresolved (Turkish synonym gap) ===")
+type_c = df[df["nlp_source"] == "unresolved"]
+print(f"  count = {len(type_c)}")
+print(f"  by variant: {type_c['variant'].value_counts().to_dict()}")
+print(f"  by language: {type_c['lang'].value_counts().to_dict()}")

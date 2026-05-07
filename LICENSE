@@ -1,0 +1,13 @@
+# Copy this file to .env and edit the paths for your local machine.
+# Do not commit your real .env file.
+
+# Absolute path to the JSON file shared between Flask and Dynamo.
+VIBE_JSON_PATH=C:\ProjectX\revit_data.json
+
+# Local Ollama endpoint and model.
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1:8b
+OLLAMA_TIMEOUT_SEC=30
+
+# Optional CSV log path.
+VIBE_LOG_PATH=./vibe_bench.csv

@@ -1,0 +1,92 @@
+gold,lang,variant,input,nlp_resolved,nlp_source,nlp_latency_ms,nlp_correct,e2e_verified,e2e_elapsed_sec,dispatched_count,write_source_cleanup_note
+roof,tr,a_direct_tr,çatıya not ekle,roof,rules,0.01,True,True,0.56,2,
+roof,en,b_direct_en,add a note to the roof,roof,rules,0.01,True,True,0.54,2,
+roof,tr,c_synonym,çatıların açıklamasına yaz,roof,rules,0.01,True,True,0.54,2,
+roof,tr,d_no_accent,cati elemanlarina yorum ekle,roof,rules,0.01,True,True,0.54,2,
+roof,tr,e_oov_tr,binanın üst kapağına bir açıklama gir,ceiling,ollama,2860.9,False,True,0.54,2,
+roof,en,f_oov_en,annotate the top covering element of the building,roof,ollama,2589.25,True,True,1.06,2,
+roof,en,g_indirect,mark the element that sheds rainwater,roof,ollama,2710.34,True,True,0.54,2,
+wall,tr,a_direct_tr,duvara yorum yaz,wall,rules,0.01,True,True,0.56,56,
+wall,en,b_direct_en,write a comment on the wall,wall,rules,0.01,True,True,0.56,56,
+wall,tr,c_synonym,bölme elemanlarına not ekle,,unresolved,2716.5,False,,,0,no_category_resolved
+wall,tr,d_no_accent,duvar elemanlarina aciklama ekle,wall,rules,0.01,True,True,1.06,56,
+wall,tr,e_oov_tr,dikey taşıyıcı kaplamalara bilgi gir,column,ollama,2664.63,False,True,1.07,3,
+wall,en,f_oov_en,annotate the vertical partitions,wall,ollama,2607.83,True,True,0.52,56,
+wall,en,g_indirect,label the enclosing vertical surfaces,wall,ollama,2735.49,True,True,1.07,56,
+floor,tr,a_direct_tr,döşeme üzerine not ekle,floor,rules,0.01,True,True,1.06,8,
+floor,en,b_direct_en,add a note to the floor,floor,rules,0.01,True,True,0.54,8,
+floor,tr,c_synonym,zemin plakalarına yorum yaz,floor,rules,0.01,True,True,0.56,8,
+floor,tr,d_no_accent,doseme elemanlarina aciklama ekle,floor,rules,0.01,True,True,0.55,8,
+floor,tr,e_oov_tr,yatay taşıyıcı levhalara açıklama gir,beam,ollama,2783.21,False,False,,0,no_elements_of_category_in_model
+floor,en,f_oov_en,annotate the horizontal slab elements,floor,ollama,2622.28,True,True,0.56,8,
+floor,en,g_indirect,tag the surfaces you walk on,floor,ollama,2710.77,True,True,0.54,8,
+door,tr,a_direct_tr,kapıya yorum ekle,door,rules,0.02,True,True,0.56,16,
+door,en,b_direct_en,annotate the doors,door,rules,0.01,True,True,0.56,16,
+door,tr,c_synonym,giriş kanatlarına not yaz,,unresolved,2721.56,False,,,0,no_category_resolved
+door,tr,d_no_accent,kapi elemanlarina aciklama yaz,door,rules,0.01,True,True,1.07,16,
+door,tr,e_oov_tr,açılan geçit elemanlarına bilgi gir,door,ollama,2568.24,True,True,1.05,16,
+door,en,f_oov_en,annotate the hinged passage elements,door,ollama,2663.84,True,True,0.56,16,
+door,en,g_indirect,tag the elements people walk through,door,ollama,2617.35,True,True,1.07,16,
+window,tr,a_direct_tr,pencereye not yaz,window,rules,0.01,True,True,0.56,17,
+window,en,b_direct_en,add a comment to the windows,window,rules,0.01,True,True,1.07,17,
+window,tr,c_synonym,cam açıklıklara yorum ekle,,unresolved,2677.08,False,,,0,no_category_resolved
+window,tr,d_no_accent,pencere elemanlarina aciklama ekle,window,rules,0.01,True,True,0.56,17,
+window,tr,e_oov_tr,dış cepheye açılan şeffaf elemanlara not gir,window,ollama,2629.7,True,True,0.52,17,
+window,en,f_oov_en,annotate the transparent facade openings,window,ollama,2640.55,True,True,1.05,17,
+window,en,g_indirect,label elements that let light through the walls,wall,rules,0.01,False,True,0.56,56,
+ceiling,tr,a_direct_tr,tavana not ekle,ceiling,rules,0.01,True,True,0.54,2,
+ceiling,en,b_direct_en,add a note to the ceiling,ceiling,rules,0.02,True,True,0.06,2,
+ceiling,tr,c_synonym,üst yüzeye yorum yaz,,unresolved,2692.97,False,,,0,no_category_resolved
+ceiling,tr,d_no_accent,tavan elemanlarina aciklama ekle,ceiling,rules,0.01,True,True,0.55,2,
+ceiling,tr,e_oov_tr,iç mekân üst kaplamalarına bilgi gir,ceiling,ollama,2661.4,True,True,0.54,2,
+ceiling,en,f_oov_en,annotate the interior overhead surfaces,ceiling,ollama,2655.35,True,True,1.07,2,
+ceiling,en,g_indirect,mark the surface directly above the room,room,rules,0.01,False,True,0.55,14,
+stair,tr,a_direct_tr,merdivene yorum yaz,stair,rules,0.01,True,True,0.56,3,
+stair,en,b_direct_en,annotate the stairs,stair,rules,0.01,True,True,0.53,3,
+stair,tr,c_synonym,basamak sistemine açıklama ekle,,unresolved,2801.05,False,,,0,no_category_resolved
+stair,tr,d_no_accent,merdiven elemanlarina not yaz,stair,rules,0.01,True,True,1.05,3,
+stair,tr,e_oov_tr,katlar arası geçiş yapılarına bilgi gir,,unresolved,2713.88,False,,,0,no_category_resolved
+stair,en,f_oov_en,annotate the inter-floor circulation elements,floor,rules,0.01,False,True,1.05,8,
+stair,en,g_indirect,tag what you climb to change levels,stair,ollama,2712.47,True,True,1.06,3,
+column,tr,a_direct_tr,kolona not ekle,column,rules,0.01,True,True,1.08,3,
+column,en,b_direct_en,add a note to the columns,column,rules,0.01,True,True,0.55,3,
+column,tr,c_synonym,düşey yapısal elemanlara yorum yaz,,unresolved,2725.18,False,,,0,no_category_resolved
+column,tr,d_no_accent,kolon elemanlarina aciklama ekle,column,rules,0.01,True,True,0.09,3,
+column,tr,e_oov_tr,dikey taşıyıcı profillere bilgi gir,,unresolved,2616.82,False,,,0,no_category_resolved
+column,en,f_oov_en,annotate the vertical load-bearing members,beam,ollama,2592.73,False,False,,0,no_elements_of_category_in_model
+column,en,g_indirect,tag the elements that transfer roof loads down,roof,rules,0.01,False,True,0.54,2,
+beam,tr,a_direct_tr,kirişe not ekle,beam,rules,0.01,True,False,,0,no_elements_of_category_in_model
+beam,en,b_direct_en,annotate the beams,beam,rules,0.02,True,False,,0,no_elements_of_category_in_model
+beam,tr,c_synonym,yatay taşıyıcılara yorum yaz,,unresolved,2756.93,False,,,0,no_category_resolved
+beam,tr,d_no_accent,kiris elemanlarina aciklama ekle,beam,rules,0.01,True,False,,0,no_elements_of_category_in_model
+beam,tr,e_oov_tr,yatay yük taşıyan profillere bilgi gir,,unresolved,2628.1,False,,,0,no_category_resolved
+beam,en,f_oov_en,annotate the horizontal load-carrying members,beam,ollama,2618.6,True,False,,0,no_elements_of_category_in_model
+beam,en,g_indirect,tag the horizontal spans supporting the slabs,floor,ollama,2589.22,False,True,0.55,8,
+railing,tr,a_direct_tr,korkuluğa not yaz,,unresolved,2598.64,False,,,0,no_category_resolved
+railing,en,b_direct_en,annotate the railings,railing,rules,0.02,True,True,0.54,10,
+railing,tr,c_synonym,tutamak sistemine yorum ekle,,unresolved,2602.9,False,,,0,no_category_resolved
+railing,tr,d_no_accent,korkuluk elemanlarina aciklama yaz,railing,rules,0.03,True,True,1.04,10,
+railing,tr,e_oov_tr,düşmeye karşı koruma elemanlarına bilgi gir,,unresolved,2778.66,False,,,0,no_category_resolved
+railing,en,f_oov_en,annotate the fall-protection elements,,unresolved,2633.62,False,,,0,no_category_resolved
+railing,en,g_indirect,tag the barriers people hold when using stairs,stair,rules,0.03,False,True,1.04,3,
+room,tr,a_direct_tr,odalara yorum ekle,room,rules,0.02,True,True,0.56,14,
+room,en,b_direct_en,annotate the rooms,room,rules,0.01,True,True,0.54,14,
+room,tr,c_synonym,mekânlara not yaz,,unresolved,2774.67,False,,,0,no_category_resolved
+room,tr,d_no_accent,oda bilgilerine aciklama ekle,room,rules,0.01,True,True,1.07,14,
+room,tr,e_oov_tr,kapalı iç hacimlere bilgi gir,room,ollama,2669.25,True,True,1.04,14,
+room,en,f_oov_en,annotate the enclosed interior spaces,room,ollama,2760.82,True,True,0.55,14,
+room,en,g_indirect,tag the areas defined by four walls,wall,rules,0.02,False,True,0.54,56,
+furniture,tr,a_direct_tr,mobilyalara yorum ekle,furniture,rules,0.01,True,True,0.54,30,
+furniture,en,b_direct_en,annotate the furniture,furniture,rules,0.02,True,False,20.13,30,
+furniture,tr,c_synonym,iç donatıya not yaz,,unresolved,2737.43,False,,,0,no_category_resolved
+furniture,tr,d_no_accent,mobilya elemanlarina aciklama ekle,furniture,rules,0.01,True,False,20.5,30,
+furniture,tr,e_oov_tr,oda içi kullanıcı eşyalarına bilgi gir,room,rules,0.01,False,True,0.54,14,
+furniture,en,f_oov_en,annotate the movable indoor items,door,rules,0.02,False,True,1.06,16,
+furniture,en,g_indirect,"tag the chairs, tables and storage units",furniture,ollama,2803.43,True,True,1.06,30,
+light,tr,a_direct_tr,aydınlatmaya yorum ekle,light,rules,0.01,True,True,13.57,10,
+light,en,b_direct_en,annotate the lighting fixtures,light,rules,0.01,True,True,1.08,10,
+light,tr,c_synonym,lamba elemanlarına not yaz,,unresolved,2637.73,False,,,0,no_category_resolved
+light,tr,d_no_accent,aydinlatma elemanlarina aciklama ekle,light,rules,0.01,True,True,0.54,10,
+light,tr,e_oov_tr,mekânı ışıklandıran cihazlara bilgi gir,light,ollama,2684.91,True,True,0.56,10,
+light,en,f_oov_en,annotate the illumination devices,,unresolved,2778.25,False,,,0,no_category_resolved
+light,en,g_indirect,tag the fixtures that emit light at night,light,rules,0.04,True,True,1.07,10,
