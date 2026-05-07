@@ -1,0 +1,250 @@
+{
+  "Uuid": "7c3e80ed-81dd-43a3-8e1f-40726637744d",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "Home.2dyn",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "Code": "import clr\r\nimport json\r\nimport os\r\nimport time\r\n\r\nclr.AddReference(\"RevitServices\")\r\nfrom RevitServices.Persistence import DocumentManager\r\nfrom RevitServices.Transactions import TransactionManager\r\n\r\nclr.AddReference(\"RevitAPI\")\r\nfrom Autodesk.Revit.DB import (\r\n    FilteredElementCollector,\r\n    BuiltInCategory,\r\n    BuiltInParameter,\r\n    ElementId\r\n)\r\n\r\ndoc  = DocumentManager.Instance.CurrentDBDocument\r\njson_path = IN[0]\r\ntick      = IN[1]\r\n\r\nlock_path = json_path + \".lock\"\r\n\r\n# ── Revit 2025 uyumlu ID yardımcıları ────────────────────\r\ndef eid_to_str(element_id):\r\n    \"\"\"ElementId → string (Revit 2024 ve 2025 uyumlu)\"\"\"\r\n    try:\r\n        return str(element_id.Value)          # Revit 2025+\r\n    except AttributeError:\r\n        return str(element_id.IntegerValue)   # Revit 2024 ve öncesi\r\n\r\ndef str_to_eid(s):\r\n    \"\"\"string → ElementId (Revit 2024 ve 2025 uyumlu)\"\"\"\r\n    return ElementId(int(s))\r\n\r\n# ── Lock helpers ──────────────────────────────────────────\r\ndef acquire_lock(timeout_sec=2.0, poll=0.05):\r\n    t0 = time.time()\r\n    while True:\r\n        try:\r\n            if not os.path.exists(lock_path):\r\n                f = open(lock_path, \"w\"); f.write(\"lock\"); f.close()\r\n                return True\r\n            raise Exception(\"locked\")\r\n        except:\r\n            if time.time() - t0 > timeout_sec: return False\r\n            time.sleep(poll)\r\n\r\ndef release_lock():\r\n    try:\r\n        if os.path.exists(lock_path): os.remove(lock_path)\r\n    except: pass\r\n\r\ndef write_json(data):\r\n    got = acquire_lock()\r\n    if not got: raise Exception(\"Kilitli\")\r\n    try:\r\n        tmp = json_path + \".tmp\"\r\n        f = open(tmp, \"w\"); f.write(json.dumps(data, indent=4, ensure_ascii=False)); f.close()\r\n        if os.path.exists(json_path): os.remove(json_path)\r\n        os.rename(tmp, json_path)\r\n    finally:\r\n        release_lock()\r\n\r\ndef read_json():\r\n    if not os.path.exists(json_path): return {}\r\n    got = acquire_lock()\r\n    if not got: return {}\r\n    try:\r\n        f = open(json_path, \"r\"); txt = f.read(); f.close()\r\n        txt = (txt or \"\").strip()\r\n        if len(txt) <= 2: return {}\r\n        return json.loads(txt)\r\n    except: return {}\r\n    finally: release_lock()\r\n\r\ndef get_comments_param(el):\r\n    p = el.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)\r\n    if p: return p\r\n    return (el.LookupParameter(\"Comments\") or\r\n            el.LookupParameter(\"Yorumlar\") or\r\n            el.LookupParameter(\"Aciklamalar\"))\r\n\r\nCAT_MAP = {\r\n    \"roof\":      BuiltInCategory.OST_Roofs,\r\n    \"wall\":      BuiltInCategory.OST_Walls,\r\n    \"floor\":     BuiltInCategory.OST_Floors,\r\n    \"door\":      BuiltInCategory.OST_Doors,\r\n    \"window\":    BuiltInCategory.OST_Windows,\r\n    \"ceiling\":   BuiltInCategory.OST_Ceilings,\r\n    \"stair\":     BuiltInCategory.OST_Stairs,\r\n    \"column\":    BuiltInCategory.OST_StructuralColumns,\r\n    \"beam\":      BuiltInCategory.OST_StructuralFraming,\r\n    \"railing\":   BuiltInCategory.OST_StairsRailing,\r\n    \"room\":      BuiltInCategory.OST_Rooms,\r\n    \"furniture\": BuiltInCategory.OST_Furniture,\r\n    \"light\":     BuiltInCategory.OST_LightingFixtures,\r\n}\r\n\r\n# ── AŞAMA 1: Mevcut veriyi oku ───────────────────────────\r\ndata = read_json()\r\nlog  = []\r\nexport_count = 0\r\n\r\n# ── AŞAMA 2: Eksik elementleri Revit'ten doldur ──────────\r\nfor cat_key, bic in CAT_MAP.items():\r\n    try:\r\n        els = FilteredElementCollector(doc)\\\r\n              .OfCategory(bic)\\\r\n              .WhereElementIsNotElementType()\\\r\n              .ToElements()\r\n        cat_count = 0\r\n        for el in els:\r\n            eid = eid_to_str(el.Id)\r\n            if eid in data:\r\n                continue\r\n            try: tip = el.Category.Name\r\n            except: tip = cat_key\r\n            try:\r\n                p = get_comments_param(el)\r\n                existing = (p.AsString() or \"\") if p else \"\"\r\n            except: existing = \"\"\r\n            data[eid] = {\r\n                \"tip\":          tip,\r\n                \"cat_key\":      cat_key,\r\n                \"Asistan_Notu\": existing,\r\n                \"Kilit\":        False,\r\n                \"LastError\":    \"\",\r\n                \"LastWrite\":    \"\"\r\n            }\r\n            export_count += 1\r\n            cat_count += 1\r\n        log.append(\"{}: {}\".format(cat_key, cat_count))\r\n    except Exception as e:\r\n        log.append(\"{}: HATA {}\".format(cat_key, str(e)[:60]))\r\n\r\nif export_count > 0:\r\n    write_json(data)\r\n\r\n# ── AŞAMA 3: Kilitli elementleri Revit'e yaz ─────────────\r\nlocked = [e for e, o in data.items() if isinstance(o, dict) and o.get(\"Kilit\")]\r\nupdated = skipped = 0\r\nerrors  = []\r\n\r\nif locked:\r\n    TransactionManager.Instance.EnsureInTransaction(doc)\r\n    for eid_str in locked:\r\n        obj  = data[eid_str]\r\n        note = (obj.get(\"Asistan_Notu\") or \"\").strip()\r\n        if not note:\r\n            obj[\"Kilit\"] = False; skipped += 1; continue\r\n        try:\r\n            el = doc.GetElement(str_to_eid(eid_str))\r\n            if el is None:\r\n                obj[\"Kilit\"] = False; obj[\"LastError\"] = \"Bulunamadi\"; skipped += 1; continue\r\n            p = get_comments_param(el)\r\n            if p is None or p.IsReadOnly:\r\n                obj[\"Kilit\"] = False; obj[\"LastError\"] = \"Read-only\"; skipped += 1; continue\r\n            p.Set(note)\r\n            obj[\"Kilit\"] = False; obj[\"LastError\"] = \"\"; obj[\"LastWrite\"] = time.strftime(\"%H:%M:%S\")\r\n            updated += 1\r\n        except Exception as e:\r\n            obj[\"LastError\"] = str(e); errors.append(str(e)[:80])\r\n    TransactionManager.Instance.TransactionTaskDone()\r\n    write_json(data)\r\n\r\nOUT = (\r\n    \"Export: +{} | Toplam: {} | Kilitli: {} | Yazilan: {} | Atlanan: {} | Hata: {}\\n{}\".format(\r\n        export_count, len(data), len(locked), updated, skipped, len(errors),\r\n        \" | \".join(log)\r\n    ),\r\n    errors\r\n)",
+      "Engine": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "79abcc05997b4dea8e34020ac6687f8d",
+      "NodeType": "PythonScriptNode",
+      "Inputs": [
+        {
+          "Id": "ab30588dd1eb40308f95a50705d4a122",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "496e7e6e4bfc4ed4a939c96531a53b45",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "96f2f0da04124534bc4254267a7835e5",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.Filename, CoreNodeModels",
+      "Id": "ec9ee5405c0f42098ae577499049f7f3",
+      "NodeType": "ExtensionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "abba2536c78841a18387223d641ad2a3",
+          "Name": "",
+          "Description": "File Path",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows you to select a file on the system and returns its file path",
+      "HintPath": "C:\\Users\\ayber\\OneDrive\\Masaüstü\\ProjectX\\revit_data.json",
+      "InputValue": "C:\\Users\\ayber\\OneDrive\\Masaüstü\\ProjectX\\revit_data.json"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "WatchWidth": 200.0,
+      "WatchHeight": 200.0,
+      "Id": "68a64ad13edb4f75b81e4c498b1fca41",
+      "NodeType": "ExtensionNode",
+      "Inputs": [
+        {
+          "Id": "fc0cf4b69ecd49c5bcd425309cd81d7b",
+          "Name": "",
+          "Description": "Node to show output from",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "71efeaa96f5b4b4ea57bbf23d215c8e0",
+          "Name": "",
+          "Description": "Node output",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualizes a node's output"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "Id": "9f0e642311874c79a1ecc75f068a349a",
+      "NodeType": "FunctionNode",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "096d00aa33784f5d87c942c10a882a2d",
+          "Name": "dateTime",
+          "Description": "DateTime representing the present time",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "FunctionSignature": "DSCore.DateTime.Now",
+      "Replication": "Auto",
+      "Description": "The current system date and time.\n\nDateTime.Now: var"
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "96f2f0da04124534bc4254267a7835e5",
+      "End": "fc0cf4b69ecd49c5bcd425309cd81d7b",
+      "Id": "4dcf162e33424f479e15ec289e824157",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "abba2536c78841a18387223d641ad2a3",
+      "End": "ab30588dd1eb40308f95a50705d4a122",
+      "Id": "491e96675cbe4647a3ef884d7a45535a",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "096d00aa33784f5d87c942c10a882a2d",
+      "End": "496e7e6e4bfc4ed4a939c96531a53b45",
+      "Id": "f8144aea2aa84fe9a3c59d9cbd59727c",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [
+    {
+      "Name": "revit_data.json",
+      "ReferenceType": "External",
+      "Nodes": [
+        "ec9ee5405c0f42098ae577499049f7f3"
+      ]
+    }
+  ],
+  "EnableLegacyPolyCurveBehavior": true,
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "3.6",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "9.1",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": false,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "3.6.1.9895",
+      "RunType": "Periodic",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Id": "79abcc05997b4dea8e34020ac6687f8d",
+        "Name": "Python Script",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 390.7520535825855,
+        "Y": 160.76861869167914
+      },
+      {
+        "Id": "ec9ee5405c0f42098ae577499049f7f3",
+        "Name": "File Path",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 10.666666666666629,
+        "Y": -0.6666666666666856
+      },
+      {
+        "Id": "68a64ad13edb4f75b81e4c498b1fca41",
+        "Name": "Watch",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 695.7413713899223,
+        "Y": 228.6932749237193
+      },
+      {
+        "Id": "9f0e642311874c79a1ecc75f068a349a",
+        "Name": "DateTime.Now",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "ShowGeometry": true,
+        "X": 93.61517014445889,
+        "Y": 223.6066755467777
+      }
+    ],
+    "Annotations": [],
+    "X": 6.085204014831788,
+    "Y": 14.454911271808271,
+    "Zoom": 1.0485066619380723
+  }
+}
