@@ -1,0 +1,41 @@
+========================================================================
+VIBE End-to-End Benchmark Summary — 2026-05-07T10:47:25
+Server: http://127.0.0.1:5000
+N = 91 commands
+NLP accuracy : 60/91 = 65.9%
+E2E verified : 65/73 = 89.0%  (of commands that reached dispatch)
+========================================================================
+
+-- NLP tier distribution --
+  rules             49  (53.8%)
+  ollama            24  (26.4%)
+  unresolved        18  (19.8%)
+
+-- Per-category NLP accuracy × E2E verification --
+  cat           N   NLP ok   E2E ok    mean E2E sec   dispatch misses
+  beam          7  4/7     1/7               0.55                 4
+  ceiling       7  5/7     6/7               0.72                 0
+  column        7  3/7     4/7               0.67                 1
+  door          7  6/7     6/7               0.72                 0
+  floor         7  6/7     6/7               0.55                 1
+  furniture     7  4/7     4/7               1.81                 0
+  light         7  5/7     5/7               1.05                 0
+  railing       7  2/7     3/7               0.89                 0
+  roof          7  6/7     7/7               0.83                 0
+  room          7  5/7     6/7               0.73                 0
+  stair         7  4/7     5/7               0.64                 0
+  wall          7  5/7     6/7               0.80                 0
+  window        7  5/7     6/7               0.73                 0
+
+-- NLP latency per tier (ms) --
+  tier                n      min   median     mean      max
+  ollama             24   2560.4   2653.8   2696.9   3519.4
+  rules              49      0.0      0.0      0.0      0.0
+  unresolved         18   2458.9   2689.0   2692.5   2831.2
+
+-- Dynamo tick + write verification elapsed time (seconds) --
+  n=65   min=0.06   median=0.56   mean=0.81   max=5.13
+
+Outputs:
+  per-command CSV : C:\Users\ayber\OneDrive\Masaüstü\ProjectX\runs\take3_run01.csv
+  summary         : C:\Users\ayber\OneDrive\Masaüstü\ProjectX\runs\take3_run01.txt
