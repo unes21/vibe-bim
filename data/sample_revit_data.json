@@ -1,0 +1,34 @@
+{
+    "100001": {
+        "tip": "Walls",
+        "cat_key": "wall",
+        "Asistan_Notu": "",
+        "Kilit": false,
+        "LastError": "",
+        "LastWrite": ""
+    },
+    "100002": {
+        "tip": "Doors",
+        "cat_key": "door",
+        "Asistan_Notu": "",
+        "Kilit": false,
+        "LastError": "",
+        "LastWrite": ""
+    },
+    "100003": {
+        "tip": "Roofs",
+        "cat_key": "roof",
+        "Asistan_Notu": "",
+        "Kilit": false,
+        "LastError": "",
+        "LastWrite": ""
+    },
+    "100004": {
+        "tip": "Lighting Fixtures",
+        "cat_key": "light",
+        "Asistan_Notu": "",
+        "Kilit": false,
+        "LastError": "",
+        "LastWrite": ""
+    }
+}
